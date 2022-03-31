@@ -1,15 +1,33 @@
-namespace pastel_app.domain {
+using pastel_app.interfaces;
 
-    class Pedido
+namespace pastel_app.domains {
+
+    class Pedido : IPedido
     {
-        public Pessoa Cliente { get; private set; }
-        public Pastel Pastel { get; private set; }
+        public IPessoa Cliente { get; private set; }
+        public IProduto Produto { get; private set; }
         public double Valor { get; private set; }
-
-        public Pedido(Pessoa cliente, Pastel pastel)
+        public bool TemAcompanhamento { get; private set; }
+        public Pedido(IPessoa cliente, IProduto produto)
         {
             this.Cliente = cliente;
-            this.Pastel = pastel;
+            this.Produto = produto;
+
+            DefinePadrao();
+        }
+
+        public Pedido(IPessoa cliente, IProduto produto, bool temAcompanhamento)
+        {
+            this.Cliente = cliente;
+            this.Produto = produto;
+            this.TemAcompanhamento = temAcompanhamento;
+
+            DefinePadrao();
+        }
+
+        void DefinePadrao() {
+            if(string.IsNullOrEmpty(this.Produto.Sabor))
+                this.Produto.EscolheSaborPadrao();
         }
 
         public void RegistraValor(double valor) {

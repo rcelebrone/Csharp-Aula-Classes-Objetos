@@ -3,12 +3,12 @@ using pastel_app.interfaces;
 
 namespace pastel_app.domains {
 
-    class Pastel : IPastel
+    class Bebida : IBebida
     {
         public string Sabor { get; set; }
         public int Tamanho { get; private set; }
 
-        public Pastel(string sabor, int tamanho)
+        public Bebida(string sabor, int tamanho)
         {
             this.Sabor = sabor;
             this.Tamanho = tamanho;
@@ -16,7 +16,7 @@ namespace pastel_app.domains {
 
         public void EscolheSaborPadrao()
         {
-            this.Sabor = "Carne";
+            this.Sabor = "Laranja";
         }
     }
 }

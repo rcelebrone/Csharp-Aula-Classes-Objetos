@@ -1,8 +1,9 @@
 ﻿using static System.Console;
-using System.Collections.Generic;
-using System.Linq;
-using pastel_app.domain;
 using System;
+using System.Collections.Generic;
+using pastel_app.domains;
+using pastel_app.interfaces;
+using pastel_app.exceptions;
 
 namespace pastel_app
 {
@@ -11,28 +12,39 @@ namespace pastel_app
 
         const double PRECO_PASTEL = 2.50;
 
+        enum TIPO_PRODUTO {
+            BEBIDA,
+            PASTEL
+        }
+
         static void Main(string[] args)
         {
-            var pedidos = new List<Pedido>();
-            var fatura = new Fatura();
+            var pedidos = new List<IPedido>();
 
             while (true) {
 
                 WriteLine("|c: Novo cliente \n|Enter: Gerar fatura");
 
                 if (ReadKey().Key == ConsoleKey.C) {
-            
-                    var cliente = ClienteSacaDinheiroEVaiAteAPastelaria();
+                    
+                    IPessoa cliente;
+                    try {
+                        cliente = GerarCliente(PRECO_PASTEL);
+                    } catch (SemDinheiroException) {
+                        continue;
+                    }
 
-                    var pedido = ClienteFazUmPedido(cliente, ref pedidos);
+                    WriteLine("------------------------------------");
 
-                    var valor = PastelariaCobraOPedido(pedido, PRECO_PASTEL);
+                    var pedido = ReceberPedido(cliente, ref pedidos);
 
-                    PastelatiaRegistraACompra(pedido, ref fatura);
+                    CobrarPedido(pedido, PRECO_PASTEL);
 
-                } else if (ReadKey().Key == ConsoleKey.Enter) {
+                } else if (ReadKey().Key == ConsoleKey.F) {
 
                     WriteLine("Gerando fatura.....");
+
+                    var fatura = new Fatura(pedidos);
 
                     fatura.ImprimeFatura();
                 } else {
@@ -41,67 +53,78 @@ namespace pastel_app
             }
         }
 
-        static void PastelatiaRegistraACompra(Pedido pedido, ref Fatura fatura)
-        {
-            if(fatura.Pedidos == null)
-                fatura.Pedidos = new List<Pedido>();
-
-            fatura.Pedidos.Add(pedido);
-            fatura.RegistrarCobrança(pedido.Valor);
-        }
-
-        static Pessoa ClienteSacaDinheiroEVaiAteAPastelaria() {
-            var nome = PegarValorDoConsole("(string) Qual o nome da pessoa? ");
+        static IPessoa GerarCliente(double produto_menor_preco) {
+            var nome = PegarValorDoConsole("(string) Qual o nome do cliente? ");
             var pessoa = new Pessoa(nome);
 
-            var dinheiro = double.Parse(PegarValorDoConsole("(double) Quer sacar quanto do banco? "));
-            pessoa.AdquirirDinheiro(dinheiro);
+            if (!pessoa.TemDinheiroParaPagar(produto_menor_preco)) {
+                string msg = string.Format("O cliente {0} não tem dinheiro suficiente para comprar nessa pastelaria e foi embora", 
+                    pessoa.Nome);
 
-            WriteLine("O cliente {0} sacou {1} e foi até a pastelaria", 
-                pessoa.Nome, 
-                pessoa.Dinheiro.ToString("C"));
+                WriteLine(msg);
+
+                throw new SemDinheiroException(msg);
+            } else 
+                WriteLine("O cliente {0} entrou na pastelaria", 
+                    pessoa.Nome);
 
             return pessoa;
         }
 
-        static Pedido ClienteFazUmPedido(Pessoa cliente, ref List<Pedido> pedidos) {
-            var sabor = PegarValorDoConsole("(string) Qual o sabor do pastel? ");
-            var tamanho = int.Parse(PegarValorDoConsole("(int) Qual o tamanho do pastel? (1 | 2)"));
-            var p = new Pastel(sabor, tamanho);
+        static IPedido ReceberPedido(IPessoa cliente, ref List<IPedido> pedidos) {
+            var tipo = PegarValorDoConsole("Quer pedir um pastel ou uma bebida? (1 = Pastel | 2 = Bebida)");
+            var sabor = PegarValorDoConsole("Qual o sabor da bebida? (escreva o nome)");
+            var tamanho = int.Parse(PegarValorDoConsole("Qual o tamanho da bebida? (1 = pequena | 2 = grande)"));
+            var acompanhamento = bool.Parse(PegarValorDoConsole("Quer acompanhamento? (true | false) "));
+            
+            IProduto produto;
+            IPedido pedido;
 
-            var acompanhamento = bool.Parse(PegarValorDoConsole("(bool) Quer acompanhamento? (true | false) "));
-            if (acompanhamento) {
-                p.Acompanhamento = acompanhamento;
+            switch(int.Parse(tipo)) {
+                case 2 : {
+                    produto = new Bebida(sabor, tamanho);
+                    break;
+                }
+                case 1 : {
+                    produto = new Pastel(sabor, tamanho);
+                    break;
+                }
+                default: {
+                    throw new ProdutoInexistenteException(string.Format("O tipo {} não é uma opção valida", tipo));
+                }
             }
 
-            var pedido = new Pedido(cliente, p);
+            if (!acompanhamento) 
+                pedido = new Pedido(cliente, produto);
+            else 
+                pedido = new Pedido(cliente, produto, acompanhamento);
 
             pedidos.Add(pedido);
 
-            WriteLine("O cliente {0} pediu um pastel de {1}", 
+            WriteLine("O cliente {0} pediu uma bebida de {1} {2}", 
                 cliente.Nome, 
-                pedido.Pastel.Sabor);
+                pedido.Produto.Sabor,
+                pedido.TemAcompanhamento ? "e tem acompanhamento" : " e não tem acompanhamento");
 
             return pedido;
         }
 
-        static double PastelariaCobraOPedido(Pedido pedido, double valor) {
+        static void CobrarPedido(IPedido pedido, double valor) {
 
-            if (pedido.Pastel.Tamanho == 1) {
-                pedido.Cliente.DeduzirDinheiro(valor);
+            if (pedido.Produto.Tamanho == 1) {
+                pedido.Cliente.EfetuarUmPagamento(valor);
                 pedido.RegistraValor(valor);
             } else {
-                pedido.Cliente.DeduzirDinheiro(valor * 2);
+                if (pedido.Cliente.TemDinheiroParaPagar(valor))
+                pedido.Cliente.EfetuarUmPagamento(valor * 2);
                 pedido.RegistraValor(valor * 2);
             }
 
             WriteLine("O cliente {0} comprou o pastel de {1} por {2} e recebeu {3} de troco", 
                 pedido.Cliente.Nome, 
-                pedido.Pastel.Sabor, 
+                pedido.Produto.Sabor, 
                 PRECO_PASTEL.ToString("C"),
                 pedido.Cliente.Dinheiro.ToString("C"));
-
-            return pedido.Valor;
         }
 
         static string PegarValorDoConsole(string mensagem) {

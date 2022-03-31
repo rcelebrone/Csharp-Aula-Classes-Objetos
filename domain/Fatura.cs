@@ -1,17 +1,24 @@
 using System;
 using System.Linq;
 using System.Collections.Generic;
+using pastel_app.interfaces;
 
-namespace pastel_app.domain {
+namespace pastel_app.domains {
 
-    class Fatura
+    class Fatura : IFatura
     {
-        public double Total { get; set; }
+        double Total { get; set; }
+        string Detalhes { get; set; }
+        public IList<IPedido> Pedidos { get; private set; }
 
-        public List<Pedido> Pedidos { get; set; }
+        public Fatura(IList<IPedido> pedidos) {
+            this.Pedidos = pedidos;
+            CalcularTotal();
+            GerarDetalhesDaImpressão();
+        }
 
-        public void RegistrarCobrança(double preço) {
-            this.Total += preço;
+        void CalcularTotal() {
+            this.Total = this.Pedidos.Sum(p => p.Valor);
         }
 
         public void ImprimeFatura() {
@@ -22,23 +29,23 @@ namespace pastel_app.domain {
                 "Total faturado: {2}\n"+ 
                 "---------------------\n",
                 Pedidos.Count, 
-                EscreveDetalhesDosPedidosParaImpressão(), 
-                this.Total);
+                this.Detalhes, 
+                this.Total.ToString("C"));
         }
 
-        string EscreveDetalhesDosPedidosParaImpressão() {
+        void GerarDetalhesDaImpressão() {
 
             string sabores = null;
 
             this.Pedidos
-                .Select(p => p.Pastel)
-                .GroupBy(p => p.Sabor.ToLower())
-                .ToList()
+                .Select(p => p.Produto) // IEnumerable<Pastel>
+                .GroupBy(p => p.Sabor.ToLower()) // IEnumerable<IGrouping<string, Pastel>>
+                .ToList() // List<IGrouping<string, Pastel>>
                 .ForEach(s => {
                     sabores += s.Key + ", ";
-            });
+                });
 
-            return sabores.Substring(0, sabores.Length - 2);
+            this.Detalhes = sabores.Substring(0, sabores.Length - 2);
         }
     }
 }
